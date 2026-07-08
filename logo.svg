@@ -1,0 +1,68 @@
+<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer decorative circles -->
+  <circle cx="200" cy="200" r="195" fill="none" stroke="#C9973A" stroke-width="1" opacity="0.6"/>
+  <circle cx="200" cy="200" r="175" fill="none" stroke="#C9973A" stroke-width="1" opacity="0.5"/>
+  <circle cx="200" cy="200" r="155" fill="none" stroke="#C9973A" stroke-width="1" opacity="0.4"/>
+  
+  <!-- Decorative petals pattern around outer circle -->
+  <g fill="#C9973A" opacity="0.3">
+    <ellipse cx="200" cy="30" rx="8" ry="15" transform="rotate(0 200 200)"/>
+    <ellipse cx="200" cy="30" rx="8" ry="15" transform="rotate(45 200 200)"/>
+    <ellipse cx="200" cy="30" rx="8" ry="15" transform="rotate(90 200 200)"/>
+    <ellipse cx="200" cy="30" rx="8" ry="15" transform="rotate(135 200 200)"/>
+    <ellipse cx="200" cy="30" rx="8" ry="15" transform="rotate(180 200 200)"/>
+    <ellipse cx="200" cy="30" rx="8" ry="15" transform="rotate(225 200 200)"/>
+    <ellipse cx="200" cy="30" rx="8" ry="15" transform="rotate(270 200 200)"/>
+    <ellipse cx="200" cy="30" rx="8" ry="15" transform="rotate(315 200 200)"/>
+  </g>
+  
+  <!-- Inner circle background -->
+  <circle cx="200" cy="200" r="130" fill="none" stroke="#C9973A" stroke-width="2"/>
+  
+  <!-- Lotus flower petals -->
+  <g fill="none" stroke="#C9973A" stroke-width="1.5" opacity="0.8">
+    <!-- Petal 1 (top) -->
+    <path d="M 200 100 Q 190 130 185 160 Q 180 180 185 195"/>
+    <path d="M 200 100 Q 210 130 215 160 Q 220 180 215 195"/>
+    
+    <!-- Petal 2 (upper right) -->
+    <path d="M 270 130 Q 250 140 220 150 Q 200 155 195 165"/>
+    <path d="M 270 130 Q 260 155 240 170 Q 220 180 210 185"/>
+    
+    <!-- Petal 3 (lower right) -->
+    <path d="M 270 270 Q 260 250 245 220 Q 235 200 230 185"/>
+    <path d="M 270 270 Q 245 255 220 245 Q 200 240 190 240"/>
+    
+    <!-- Petal 4 (bottom) -->
+    <path d="M 200 300 Q 210 270 215 240 Q 220 220 215 205"/>
+    <path d="M 200 300 Q 190 270 185 240 Q 180 220 185 205"/>
+    
+    <!-- Petal 5 (lower left) -->
+    <path d="M 130 270 Q 150 255 175 245 Q 195 240 210 240"/>
+    <path d="M 130 270 Q 155 250 180 230 Q 200 215 210 195"/>
+    
+    <!-- Petal 6 (upper left) -->
+    <path d="M 130 130 Q 155 145 180 155 Q 200 160 210 165"/>
+    <path d="M 130 130 Q 145 140 170 150 Q 190 160 205 175"/>
+  </g>
+  
+  <!-- Lotus inner details -->
+  <circle cx="200" cy="200" r="35" fill="none" stroke="#C9973A" stroke-width="1" opacity="0.4"/>
+  <circle cx="200" cy="200" r="20" fill="none" stroke="#C9973A" stroke-width="1" opacity="0.3"/>
+  
+  <!-- Center lotus stamen -->
+  <circle cx="200" cy="200" r="8" fill="#C9973A" opacity="0.6"/>
+  <circle cx="200" cy="200" r="5" fill="#C9973A"/>
+  
+  <!-- Text: SOHAM -->
+  <text x="200" y="250" font-family="serif" font-size="48" font-weight="bold" text-anchor="middle" fill="#C9973A" letter-spacing="3">SOHAM</text>
+  
+  <!-- Text: JEWELLERS -->
+  <text x="200" y="280" font-family="serif" font-size="20" text-anchor="middle" fill="#C9973A" letter-spacing="4">JEWELLERS</text>
+  
+  <!-- Decorative line under text -->
+  <line x1="160" y1="295" x2="240" y2="295" stroke="#C9973A" stroke-width="1" opacity="0.4"/>
+  <circle cx="180" cy="300" r="3" fill="#C9973A" opacity="0.4"/>
+  <circle cx="200" cy="300" r="3" fill="#C9973A" opacity="0.4"/>
+  <circle cx="220" cy="300" r="3" fill="#C9973A" opacity="0.4"/>
+</svg>
