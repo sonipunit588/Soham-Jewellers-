@@ -10,16 +10,36 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = "Server=(localdb)\\MSSQLLocalDB;Database=JewelleryDb;Trusted_Connection=True;TrustServerCertificate=True;";
-var jwtKey = "THIS_IS_A_LONG_DEMO_SECRET_KEY_CHANGE_IT_123456789";
-var jwtIssuer = "SohamJewellers";
-var jwtAudience = "SohamJewellersUsers";
+var connectionString = builder.Configuration.GetConnectionString("JewelleryDb")
+    ?? "Server=(localdb)\\MSSQLLocalDB;Database=JewelleryDb;Trusted_Connection=True;TrustServerCertificate=True;";
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException("Jwt:Key is not configured. Set it in appsettings.json or as an environment variable.");
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "SohamJewellers";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "SohamJewellersUsers";
+
+if (jwtKey.StartsWith("REPLACE_THIS"))
+    throw new InvalidOperationException(
+        "Jwt:Key is still set to the placeholder value. " +
+        "Set a real secret key in appsettings.json (as Jwt:Key) " +
+        "or as an environment variable (as Jwt__Key).");
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 10 * 1024 * 1024;
+});
+
+builder.Services.AddCors(options =>
+{
+    // WARNING: AllowAnyOrigin is for local development only.
+    // Restrict to your actual domain before deploying to production.
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
 });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -57,6 +77,7 @@ catch (Exception ex)
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseStaticFiles();
+app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -274,6 +295,118 @@ app.MapGet("/products", () =>
     return Results.Ok(products);
 });
 
+app.MapGet("/products/{id:int}", (int id) =>
+{
+    using var connection = new SqlConnection(connectionString);
+    connection.Open();
+
+    using var command = new SqlCommand(@"
+        SELECT Id, Name, Collection, Weight, Purity, MakingCharge, Price, PhotoPath, CreatedAt
+        FROM Products WHERE Id = @Id", connection);
+    command.Parameters.AddWithValue("@Id", id);
+
+    using var reader = command.ExecuteReader();
+    if (!reader.Read())
+        return Results.NotFound(new { message = "Product not found." });
+
+    var product = new ProductResponse(
+        Id: Convert.ToInt32(reader["Id"]),
+        Name: reader["Name"].ToString() ?? "",
+        Collection: reader["Collection"].ToString() ?? "",
+        Weight: Convert.ToDecimal(reader["Weight"]),
+        Purity: reader["Purity"].ToString() ?? "",
+        MakingCharge: Convert.ToDecimal(reader["MakingCharge"]),
+        Price: Convert.ToDecimal(reader["Price"]),
+        PhotoPath: reader["PhotoPath"] == DBNull.Value ? null : reader["PhotoPath"].ToString(),
+        CreatedAt: Convert.ToDateTime(reader["CreatedAt"])
+    );
+
+    return Results.Ok(product);
+});
+
+app.MapPut("/products/{id:int}", async (int id, HttpRequest httpRequest, ClaimsPrincipal user) =>
+{
+    if (!user.Identity?.IsAuthenticated ?? true)
+        return Results.Unauthorized();
+
+    if (!user.IsInRole("Owner"))
+        return Results.Forbid();
+
+    ProductUpdateRequest? request;
+    try
+    {
+        request = await httpRequest.ReadFromJsonAsync<ProductUpdateRequest>();
+    }
+    catch
+    {
+        return Results.BadRequest(new { message = "Invalid request body." });
+    }
+
+    if (request is null || string.IsNullOrWhiteSpace(request.Name))
+        return Results.BadRequest(new { message = "Product name is required." });
+
+    if (request.Weight <= 0)
+        return Results.BadRequest(new { message = "Weight must be greater than zero." });
+
+    if (request.Price <= 0)
+        return Results.BadRequest(new { message = "Price must be greater than zero." });
+
+    using var connection = new SqlConnection(connectionString);
+    connection.Open();
+
+    using var command = new SqlCommand(@"
+        UPDATE Products
+        SET Name = @Name, Collection = @Collection, Weight = @Weight,
+            Purity = @Purity, MakingCharge = @MakingCharge, Price = @Price
+        WHERE Id = @Id;
+        SELECT @@ROWCOUNT;", connection);
+
+    command.Parameters.AddWithValue("@Id", id);
+    command.Parameters.AddWithValue("@Name", request.Name.Trim());
+    command.Parameters.AddWithValue("@Collection", (request.Collection ?? "").Trim());
+    command.Parameters.AddWithValue("@Weight", request.Weight);
+    command.Parameters.AddWithValue("@Purity", (request.Purity ?? "").Trim());
+    command.Parameters.AddWithValue("@MakingCharge", request.MakingCharge);
+    command.Parameters.AddWithValue("@Price", request.Price);
+
+    var rows = Convert.ToInt32(command.ExecuteScalar());
+    if (rows == 0)
+        return Results.NotFound(new { message = "Product not found." });
+
+    return Results.Ok(new
+    {
+        message = "Product updated.",
+        id,
+        name = request.Name.Trim(),
+        collection = request.Collection,
+        weight = request.Weight,
+        purity = request.Purity,
+        makingCharge = request.MakingCharge,
+        price = request.Price
+    });
+}).RequireAuthorization();
+
+app.MapDelete("/products/{id:int}", (int id, ClaimsPrincipal user) =>
+{
+    if (!user.Identity?.IsAuthenticated ?? true)
+        return Results.Unauthorized();
+
+    if (!user.IsInRole("Owner"))
+        return Results.Forbid();
+
+    using var connection = new SqlConnection(connectionString);
+    connection.Open();
+
+    using var command = new SqlCommand("DELETE FROM Products WHERE Id = @Id; SELECT @@ROWCOUNT;", connection);
+    command.Parameters.AddWithValue("@Id", id);
+
+    var rows = Convert.ToInt32(command.ExecuteScalar());
+    if (rows == 0)
+        return Results.NotFound(new { message = "Product not found." });
+
+    return Results.Ok(new { message = "Product deleted." });
+}).RequireAuthorization();
+
 app.Run();
 
 static void EnsureDatabase(string connectionString)
@@ -455,6 +588,7 @@ static string GenerateJwtToken(int id, string name, string email, string role, s
 record RegisterRequest(string Name, string Email, string Password, string? Phone);
 record LoginRequest(string Email, string Password);
 record ProductFormRequest(string Name, string Collection, string Weight, string Purity, string MakingCharge, string Price, IFormFile? Image);
+record ProductUpdateRequest(string Name, string? Collection, decimal Weight, string? Purity, decimal MakingCharge, decimal Price);
 record ProductResponse(int Id, string Name, string Collection, decimal Weight, string Purity, decimal MakingCharge, decimal Price, string? PhotoPath, DateTime CreatedAt);
 record AccountRecord(int Id, string Name, string Email, string PasswordHash, string PasswordSalt);
 
@@ -463,14 +597,12 @@ static class PasswordHelper
     public static PasswordHashResult HashPassword(string password)
     {
         var saltBytes = RandomNumberGenerator.GetBytes(16);
-
-        using var pbkdf2 = new Rfc2898DeriveBytes(
+        var hashBytes = Rfc2898DeriveBytes.Pbkdf2(
             password,
             saltBytes,
             100_000,
-            HashAlgorithmName.SHA256);
-
-        var hashBytes = pbkdf2.GetBytes(32);
+            HashAlgorithmName.SHA256,
+            32);
 
         return new PasswordHashResult(
             Convert.ToBase64String(hashBytes),
@@ -481,14 +613,12 @@ static class PasswordHelper
     public static bool VerifyPassword(string password, string storedHash, string storedSalt)
     {
         var saltBytes = Convert.FromBase64String(storedSalt);
-
-        using var pbkdf2 = new Rfc2898DeriveBytes(
+        var hashBytes = Rfc2898DeriveBytes.Pbkdf2(
             password,
             saltBytes,
             100_000,
-            HashAlgorithmName.SHA256);
-
-        var hashBytes = pbkdf2.GetBytes(32);
+            HashAlgorithmName.SHA256,
+            32);
         var computedHash = Convert.ToBase64String(hashBytes);
 
         return CryptographicOperations.FixedTimeEquals(

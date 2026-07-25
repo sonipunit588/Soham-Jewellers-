@@ -2037,7 +2037,7 @@ const USERS_KEY = 'sohamUsers';
 const SESSION_KEY = 'sohamCurrentUser';
 const OWNER_EMAIL = 'owner@sohamjewellers.com';
 const OWNER_PASS = 'owner123';
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'http://localhost:5050';
 let currentRates = { ...baseRates };
 let currentUser = null;
 let wishlist = [];
@@ -2167,8 +2167,11 @@ function getCurrentUser() {
   }
 }
 
-async function fetchJson(url, options) {
-  const response = await fetch(url, options);
+async function fetchJson(url, options = {}) {
+  const token = currentUser && currentUser.token;
+  const headers = { ...(options.headers || {}) };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const response = await fetch(url, { ...options, headers });
   if (!response.ok) {
     const body = await response.text();
     throw new Error(body || 'Request failed');
@@ -2188,7 +2191,7 @@ function saveUserWishlist() {
   if (!currentUser) return;
   const users = getStoredUsers();
   const idx = users.findIndex(u => u.email === currentUser.email || u.phone === currentUser.phone);
-  if (idx > -1) { bb 
+  if (idx > -1) {
     users[idx].wishlist = wishlist;
     saveStoredUsers(users);
     currentUser = users[idx];
@@ -2486,30 +2489,21 @@ async function handleLogin() {
     return;
   }
 
-  if (loginKey.toLowerCase() === OWNER_EMAIL && password === OWNER_PASS) {
-    currentUser = { name: 'Owner', email: OWNER_EMAIL, isOwner: true, wishlist: [], cart: [] };
-    saveCurrentUser(currentUser);
-    updateAuthUI();
-    closeLogin();
-    showToast('✅', 'Owner access granted');
-    return;
-  }
-
   try {
-    const users = await fetchJson(`${API_BASE}/users`);
-    const foundUser = users.find(u => u.email === loginKey.toLowerCase() || u.phone === loginKey);
-    if (!foundUser || foundUser.passwordHash !== btoa(password)) {
-      showToast('❌', 'Login failed. Check your email/mobile and password');
-      return;
-    }
+    const result = await fetchJson(API_BASE + '/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: loginKey, password })
+    });
 
-    currentUser = { id: foundUser.id, name: foundUser.fullName || foundUser.name, email: foundUser.email, phone: foundUser.phone, wishlist: [], cart: [] };
+    const isOwner = result.role === 'Owner';
+    currentUser = { name: result.name, email: result.email, token: result.token, isOwner, wishlist: [], cart: [] };
     saveCurrentUser(currentUser);
     updateAuthUI();
     closeLogin();
-    showToast('✅', `Welcome back, ${currentUser.name.split(' ')[0]}!`);
+    showToast('✅', isOwner ? 'Owner access granted' : 'Welcome back, ' + result.name.split(' ')[0] + '!');
   } catch (e) {
-    showToast('❌', 'Could not reach backend');
+    showToast('❌', 'Login failed. Check your email and password.');
   }
 }
 
@@ -2537,20 +2531,26 @@ async function handleRegister() {
   }
 
   try {
-    const newUser = { fullName: name, phone, email, passwordHash: btoa(password) };
-    const created = await fetchJson(`${API_BASE}/users`, {
+    await fetchJson(API_BASE + '/register-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newUser)
+      body: JSON.stringify({ name, email, password, phone })
     });
 
-    currentUser = { id: created.id, name, email, phone, wishlist: [], cart: [] };
+    // Auto-login after successful registration
+    const result = await fetchJson(API_BASE + '/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    currentUser = { name: result.name, email: result.email, token: result.token, isOwner: false, wishlist: [], cart: [] };
     saveCurrentUser(currentUser);
     updateAuthUI();
     switchModalTab('account', document.getElementById('tab-account'));
-    showToast('✅', `Welcome, ${name.split(' ')[0]}! Your account is ready.`);
+    showToast('✅', 'Welcome, ' + name.split(' ')[0] + '! Your account is ready.');
   } catch (e) {
-    showToast('❌', 'Registration failed');
+    showToast('❌', e.message || 'Registration failed');
   }
 }
 
@@ -2684,57 +2684,50 @@ async function handleOwnerUpload() {
   const editId = document.getElementById('product-edit-id').value;
   const fileInput = document.getElementById('product-photo');
 
-  const finalizeProduct = async (photoData) => {
-    const payload = {
-      name,
-      collection,
-      weight,
-      purity,
-      makingCharge: making,
-      price,
-      photo: photoData || null,
-      sortOrder: editId ? (products.findIndex(p => p.id == editId) + 1) : (products.length + 1)
-    };
-
-    try {
-      let savedProduct;
-      if (editId) {
-        savedProduct = await fetchJson(`${API_BASE}/products/${editId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const index = products.findIndex(p => p.id == editId);
-        if (index > -1) products[index] = { ...products[index], ...savedProduct, making: savedProduct.makingCharge || making };
-        showToast('✏️','Product updated');
-        setOwnerStatus('Updated product');
-      } else {
-        savedProduct = await fetchJson(`${API_BASE}/products`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        products.push({ ...savedProduct, making: savedProduct.makingCharge || making });
-        showToast('✅','Product uploaded');
-        setOwnerStatus('Added new product');
+  try {
+    let savedProduct;
+    if (editId) {
+      // Edit existing product: send JSON (text fields only, no image change)
+      savedProduct = await fetchJson(API_BASE + '/products/' + editId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, collection, weight, purity, makingCharge: making, price })
+      });
+      const index = products.findIndex(p => p.id == editId);
+      if (index > -1) {
+        products[index] = { ...products[index], ...savedProduct, making: savedProduct.makingCharge || making };
       }
-      saveProducts();
-      renderProducts();
-      resetOwnerForm();
-    } catch (e) {
-      showToast('❌','Could not save product to backend');
+      showToast('✏️','Product updated');
+      setOwnerStatus('Updated product');
+    } else {
+      // New product: send as multipart/form-data so the image file is uploaded properly
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('collection', collection);
+      formData.append('weight', String(weight));
+      formData.append('purity', purity);
+      formData.append('makingCharge', String(making));
+      formData.append('price', String(price));
+      if (fileInput && fileInput.files && fileInput.files[0]) {
+        formData.append('image', fileInput.files[0]);
+      }
+      // Do NOT set Content-Type header; browser sets it with the correct multipart boundary
+      savedProduct = await fetchJson(API_BASE + '/products', { method: 'POST', body: formData });
+      products.push({
+        id: savedProduct.productId,
+        name, collection, weight, purity,
+        makingCharge: making, price,
+        photo: savedProduct.imageUrl || null,
+        making
+      });
+      showToast('✅','Product uploaded');
+      setOwnerStatus('Added new product');
     }
-  };
-
-  if (fileInput && fileInput.files && fileInput.files[0]) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      finalizeProduct(e.target.result);
-    };
-    reader.readAsDataURL(fileInput.files[0]);
-  } else {
-    const existing = editId ? products.find(p => p.id == editId) : null;
-    finalizeProduct(existing ? existing.photo : null);
+    saveProducts();
+    renderProducts();
+    resetOwnerForm();
+  } catch (e) {
+    showToast('❌', e.message || 'Could not save product to backend');
   }
 }
 
@@ -2832,13 +2825,17 @@ function renderOwnerProductList() {
 
 async function loadProductsFromApi() {
   try {
-    const list = await fetchJson(`${API_BASE}/products`);
-    products = Array.isArray(list) ? list.map(product => ({ ...product, making: product.makingCharge ?? product.making ?? 0 })) : [];
+    const list = await fetchJson(API_BASE + '/products');
+    products = Array.isArray(list) ? list.map(p => ({ ...p, photo: p.photoPath, making: p.makingCharge ?? p.making ?? 0 })) : [];
     saveProducts();
     renderProducts();
     renderOwnerProductList();
   } catch (e) {
     console.error(e);
+    // Fall back to localStorage cache when backend is unreachable
+    try { products = JSON.parse(localStorage.getItem(PRODUCTS_KEY)) || []; } catch (parseErr) { console.error('Failed to parse cached products', parseErr); products = []; }
+    renderProducts();
+    renderOwnerProductList();
     showToast('⚠️', 'Could not load products from backend');
   }
 }
@@ -2869,36 +2866,15 @@ async function moveProduct(id, direction) {
   if (target < 0 || target >= products.length) return;
   const [moved] = products.splice(index, 1);
   products.splice(target, 0, moved);
-
-  try {
-    for (let i = 0; i < products.length; i += 1) {
-      const product = products[i];
-      await fetchJson(`${API_BASE}/products/${product.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: product.name,
-          collection: product.collection,
-          weight: product.weight,
-          purity: product.purity,
-          makingCharge: product.makingCharge ?? product.making ?? 0,
-          price: product.price,
-          photo: product.photo,
-          sortOrder: i + 1
-        })
-      });
-    }
-    await loadProductsFromApi();
-    showToast('↕️','Product order updated');
-  } catch (e) {
-    showToast('❌','Could not update product order');
-  }
+  saveProducts();
+  renderProducts();
+  showToast('↕️','Product order updated');
 }
 
 async function deleteProduct(id) {
   if (!confirm('Delete this product from the collection?')) return;
   try {
-    await fetchJson(`${API_BASE}/products/${id}`, { method: 'DELETE' });
+    await fetchJson(API_BASE + '/products/' + id, { method: 'DELETE' });
     products = products.filter(p => p.id != id);
     saveProducts();
     renderProducts();
