@@ -18,7 +18,10 @@ var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "SohamJewellers";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "SohamJewellersUsers";
 
 if (jwtKey.StartsWith("REPLACE_THIS"))
-    throw new InvalidOperationException("Jwt:Key is still set to the placeholder value. Please set a real secret key in appsettings.json or as an environment variable Jwt__Key.");
+    throw new InvalidOperationException(
+        "Jwt:Key is still set to the placeholder value. " +
+        "Set a real secret key in appsettings.json (as Jwt:Key) " +
+        "or as an environment variable (as Jwt__Key).");
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -29,6 +32,8 @@ builder.Services.Configure<FormOptions>(options =>
 
 builder.Services.AddCors(options =>
 {
+    // WARNING: AllowAnyOrigin is for local development only.
+    // Restrict to your actual domain before deploying to production.
     options.AddDefaultPolicy(policy =>
     {
         policy.AllowAnyOrigin()

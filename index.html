@@ -2833,7 +2833,7 @@ async function loadProductsFromApi() {
   } catch (e) {
     console.error(e);
     // Fall back to localStorage cache when backend is unreachable
-    try { products = JSON.parse(localStorage.getItem(PRODUCTS_KEY)) || []; } catch { products = []; }
+    try { products = JSON.parse(localStorage.getItem(PRODUCTS_KEY)) || []; } catch (parseErr) { console.error('Failed to parse cached products', parseErr); products = []; }
     renderProducts();
     renderOwnerProductList();
     showToast('⚠️', 'Could not load products from backend');
