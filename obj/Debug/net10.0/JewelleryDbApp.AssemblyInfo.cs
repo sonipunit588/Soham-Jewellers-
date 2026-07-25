@@ -10,10 +10,11 @@
 using System;
 using System.Reflection;
 
+[assembly: Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute("soham-jewellers-backend")]
 [assembly: System.Reflection.AssemblyCompanyAttribute("JewelleryDbApp")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9e1f0c4935253d265642a5077e68681c403747eb")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2f6f824e2e54bb8a9cc325b09db939ea49cd2175")]
 [assembly: System.Reflection.AssemblyProductAttribute("JewelleryDbApp")]
 [assembly: System.Reflection.AssemblyTitleAttribute("JewelleryDbApp")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

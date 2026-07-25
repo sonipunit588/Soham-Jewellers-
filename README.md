@@ -125,6 +125,28 @@ GET /products
 GET /products/{id}
 ```
 
+### Update a product *(Owner only)*
+```
+PUT /products/{id}
+Authorization: ******
+Content-Type: application/json
+
+{
+  "name": "Gold Necklace Updated",
+  "collection": "Wedding",
+  "weight": 9.0,
+  "purity": "22K",
+  "makingCharge": 13,
+  "price": 58000
+}
+```
+
+### Delete a product *(Owner only)*
+```
+DELETE /products/{id}
+Authorization: ******
+```
+
 ---
 
 ## Database reset
