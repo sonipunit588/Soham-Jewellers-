@@ -139,7 +139,7 @@ If you need to start fresh (e.g. after a schema change):
 
 ## Security notes
 
-- Passwords are hashed with **PBKDF2-SHA256** (100 000 iterations + random salt). Never stored in plain text.
+- Passwords are hashed with **PBKDF2-SHA256** (100,000 iterations + random salt). Never stored in plain text.
 - Product creation requires a valid JWT with the `Owner` role.
 - Uploaded images are validated for extension and size (max 5 MB).
 - The JWT key **must** be changed from the placeholder before deploying to production.

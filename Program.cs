@@ -17,7 +17,7 @@ var jwtKey = builder.Configuration["Jwt:Key"]
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "SohamJewellers";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "SohamJewellersUsers";
 
-if (jwtKey.StartsWith("REPLACE_THIS") || jwtKey.StartsWith("DEV_ONLY_SECRET"))
+if (jwtKey.StartsWith("REPLACE_THIS"))
     throw new InvalidOperationException("Jwt:Key is still set to the placeholder value. Please set a real secret key in appsettings.json or as an environment variable Jwt__Key.");
 
 builder.Services.AddEndpointsApiExplorer();
