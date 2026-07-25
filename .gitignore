@@ -1,0 +1,22 @@
+## Build artifacts
+bin/
+obj/
+
+## Visual Studio files
+*.user
+*.suo
+.vs/
+*.csproj.user
+
+## Secret / environment-specific settings (add real secrets here, not in appsettings.json)
+## appsettings.json and appsettings.Development.json are tracked as safe templates.
+appsettings.Production.json
+appsettings.Staging.json
+
+## Uploaded product images (tracked via .gitkeep only)
+wwwroot/uploads/products/*
+!wwwroot/uploads/products/.gitkeep
+
+## OS files
+.DS_Store
+Thumbs.db

@@ -10,10 +10,15 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = "Server=(localdb)\\MSSQLLocalDB;Database=JewelleryDb;Trusted_Connection=True;TrustServerCertificate=True;";
-var jwtKey = "THIS_IS_A_LONG_DEMO_SECRET_KEY_CHANGE_IT_123456789";
-var jwtIssuer = "SohamJewellers";
-var jwtAudience = "SohamJewellersUsers";
+var connectionString = builder.Configuration.GetConnectionString("JewelleryDb")
+    ?? "Server=(localdb)\\MSSQLLocalDB;Database=JewelleryDb;Trusted_Connection=True;TrustServerCertificate=True;";
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException("Jwt:Key is not configured. Set it in appsettings.json or as an environment variable.");
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "SohamJewellers";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "SohamJewellersUsers";
+
+if (jwtKey.StartsWith("REPLACE_THIS") || jwtKey.StartsWith("DEV_ONLY_SECRET"))
+    throw new InvalidOperationException("Jwt:Key is still set to the placeholder value. Please set a real secret key in appsettings.json or as an environment variable Jwt__Key.");
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -274,6 +279,35 @@ app.MapGet("/products", () =>
     return Results.Ok(products);
 });
 
+app.MapGet("/products/{id:int}", (int id) =>
+{
+    using var connection = new SqlConnection(connectionString);
+    connection.Open();
+
+    using var command = new SqlCommand(@"
+        SELECT Id, Name, Collection, Weight, Purity, MakingCharge, Price, PhotoPath, CreatedAt
+        FROM Products WHERE Id = @Id", connection);
+    command.Parameters.AddWithValue("@Id", id);
+
+    using var reader = command.ExecuteReader();
+    if (!reader.Read())
+        return Results.NotFound(new { message = "Product not found." });
+
+    var product = new ProductResponse(
+        Id: Convert.ToInt32(reader["Id"]),
+        Name: reader["Name"].ToString() ?? "",
+        Collection: reader["Collection"].ToString() ?? "",
+        Weight: Convert.ToDecimal(reader["Weight"]),
+        Purity: reader["Purity"].ToString() ?? "",
+        MakingCharge: Convert.ToDecimal(reader["MakingCharge"]),
+        Price: Convert.ToDecimal(reader["Price"]),
+        PhotoPath: reader["PhotoPath"] == DBNull.Value ? null : reader["PhotoPath"].ToString(),
+        CreatedAt: Convert.ToDateTime(reader["CreatedAt"])
+    );
+
+    return Results.Ok(product);
+});
+
 app.Run();
 
 static void EnsureDatabase(string connectionString)
@@ -463,14 +497,12 @@ static class PasswordHelper
     public static PasswordHashResult HashPassword(string password)
     {
         var saltBytes = RandomNumberGenerator.GetBytes(16);
-
-        using var pbkdf2 = new Rfc2898DeriveBytes(
+        var hashBytes = Rfc2898DeriveBytes.Pbkdf2(
             password,
             saltBytes,
             100_000,
-            HashAlgorithmName.SHA256);
-
-        var hashBytes = pbkdf2.GetBytes(32);
+            HashAlgorithmName.SHA256,
+            32);
 
         return new PasswordHashResult(
             Convert.ToBase64String(hashBytes),
@@ -481,14 +513,12 @@ static class PasswordHelper
     public static bool VerifyPassword(string password, string storedHash, string storedSalt)
     {
         var saltBytes = Convert.FromBase64String(storedSalt);
-
-        using var pbkdf2 = new Rfc2898DeriveBytes(
+        var hashBytes = Rfc2898DeriveBytes.Pbkdf2(
             password,
             saltBytes,
             100_000,
-            HashAlgorithmName.SHA256);
-
-        var hashBytes = pbkdf2.GetBytes(32);
+            HashAlgorithmName.SHA256,
+            32);
         var computedHash = Convert.ToBase64String(hashBytes);
 
         return CryptographicOperations.FixedTimeEquals(
